@@ -8,7 +8,7 @@ bot = telebot.TeleBot(TOKEN)
 
 CHANNEL_USERNAME = "@rzdpodarkov"
 CHANNEL_URL = "https://t.me/rzdpodarkov"
-BOT_USERNAME = "ТВОЙ_БОТ_USERNAME"  # без @
+BOT_USERNAME = "rzdpodarkov_bot"  # без @
 
 # ===== БАЗА ДАННЫХ =====
 conn = sqlite3.connect("users.db", check_same_thread=False)
