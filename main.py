@@ -6,7 +6,7 @@ from threading import Thread
 import datetime
 
 # ================== НАСТРОЙКИ ==================
-TOKEN = ""  # <-- Вставьте сюда токен бота
+ TOKEN = os.getenv("TOKEN") # <-- Вставьте сюда токен бота
 CHANNEL_USERNAME = "@rzdpodarkov"
 BOT_USERNAME = "rzdpodarkov_bot"
 MAX_REFS_PER_USER = 1000
