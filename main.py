@@ -1,3 +1,4 @@
+import os
 import telebot
 import sqlite3
 from telebot import types
@@ -6,20 +7,17 @@ from threading import Thread
 import datetime
 
 # ================== НАСТРОЙКИ ==================
- TOKEN = os.getenv("TOKEN") # <-- Вставьте сюда токен бота
+TOKEN = os.getenv("TOKEN")
+if not TOKEN:
+    raise ValueError("❌ TOKEN не найден. Добавь его в Environment Variables")
+
 CHANNEL_USERNAME = "@rzdpodarkov"
 BOT_USERNAME = "rzdpodarkov_bot"
 MAX_REFS_PER_USER = 1000
 MAX_DAILY_REFS = 50
 ADMINS = [5762539317]
 
-TOKEN = os.getenv("TOKEN")
-
-if not TOKEN:
-    raise ValueError("❌ TOKEN не найден. Добавь его в Environment Variables")
-
 bot = telebot.TeleBot(TOKEN)
-
 
 # ================== KEEP-ALIVE ==================
 app = Flask('')
@@ -44,6 +42,7 @@ CREATE TABLE IF NOT EXISTS users (
     ref_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 )
 """)
+cursor.execute("CREATE INDEX IF NOT EXISTS idx_ref_by ON users(ref_by)")
 conn.commit()
 
 # ================== ЛОГИ ==================
@@ -54,17 +53,20 @@ def add_log(action):
 
 # ================== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==================
 def is_admin(user_id): return user_id in ADMINS
+
 def is_subscribed(user_id):
     try:
         member = bot.get_chat_member(CHANNEL_USERNAME, user_id)
         return member.status in ['member','administrator','creator']
-    except: return False
+    except:
+        return False
 
 def update_referrals(user_id):
+    if not is_subscribed(user_id):
+        return
     cursor.execute("SELECT blocked, ref_by FROM users WHERE user_id=?", (user_id,))
     result = cursor.fetchone()
-    if not result:
-        return
+    if not result: return
     blocked, ref_by = result
     if blocked or not ref_by: return
     cursor.execute("SELECT refs, daily_refs FROM users WHERE user_id=?", (ref_by,))
@@ -88,7 +90,6 @@ def get_level(refs):
 def generate_progress_text(user_id):
     cursor.execute("SELECT refs FROM users WHERE user_id=?", (user_id,))
     refs = cursor.fetchone()[0]
-
     if refs >= 16:
         level = "Эксперт"
         max_refs = 20
@@ -101,13 +102,11 @@ def generate_progress_text(user_id):
     else:
         level = "Новичок"
         max_refs = 1
-
     progress_ratio = refs / max_refs
     total_blocks = 20
     filled_blocks = int(total_blocks * progress_ratio)
     empty_blocks = total_blocks - filled_blocks
     bar = "🟩" * filled_blocks + "⬜" * empty_blocks
-
     text = f"🏅 Уровень: {level}\n"
     text += f"Рефералы: {refs}/{max_refs}\n"
     text += f"Прогресс: {bar} ({int(progress_ratio*100)}%)"
@@ -174,7 +173,7 @@ def start(message):
 @bot.callback_query_handler(func=lambda call: True)
 def callback_handler(call):
     user_id=call.from_user.id
-    bot.answer_callback_query(call.id)  # убираем "Загрузка..."
+    bot.answer_callback_query(call.id, text="✅ Выполнено")  # кнопки больше не виснут
 
     if call.data=="show_progress":
         cursor.execute("SELECT blocked FROM users WHERE user_id=?",(user_id,))
@@ -190,7 +189,7 @@ def callback_handler(call):
     elif call.data=="my_refs":
         cursor.execute("SELECT username FROM users WHERE ref_by=?",(user_id,))
         refs=cursor.fetchall()
-        text="📋 Ваши рефералы:\n"+("\n".join([f"@{r[0]}" for r in refs]) if refs else "Пока нет")
+        text="📋 Ваши рефералы:\n"+("\n".join([f"@{r[0]}" if r[0] else f"User_{i+1}" for i,r in enumerate(refs)]) if refs else "Пока нет")
         bot.send_message(user_id,text)
 
     elif call.data=="leaderboard":
@@ -202,7 +201,7 @@ def callback_handler(call):
         period_name = PERIOD_NAMES.get(period, period)
         text=f"🏆 Топ пользователей {period_name}:\n"
         for i,r in enumerate(rows,1):
-            nick=r[0] or str(i)
+            nick = r[0] if r[0] else f"User_{i}"
             text+=f"{i}. @{nick} — {r[1]} рефералов\n"
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id)
 
