@@ -13,7 +13,13 @@ MAX_REFS_PER_USER = 1000
 MAX_DAILY_REFS = 50
 ADMINS = [5762539317]
 
+TOKEN = os.getenv("TOKEN")
+
+if not TOKEN:
+    raise ValueError("❌ TOKEN не найден. Добавь его в Environment Variables")
+
 bot = telebot.TeleBot(TOKEN)
+
 
 # ================== KEEP-ALIVE ==================
 app = Flask('')
